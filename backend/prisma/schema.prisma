@@ -10,7 +10,272 @@ generator client {
 
 datasource db {
   provider = "mysql"
-  url      = env("DATABASE_URL")
 }
 
-// Models will be added here.
+// ===========================
+// Product & Inventory Models
+// ===========================
+
+model Product {
+  id          BigInt     @id @default(autoincrement())
+  name        String     @db.VarChar(255)
+  description String?    @db.Text
+  images      Json?      // Array of image URLs
+  active      Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  variants    Variant[]
+
+  @@index([active])
+}
+
+model Variant {
+  id        BigInt   @id @default(autoincrement())
+  productId BigInt
+  sku       String   @unique @db.VarChar(100)
+  size      String   @db.VarChar(50)
+  color     String   @db.VarChar(50)
+  price     Decimal  @db.Decimal(10, 2)
+  stock     Int
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  product   Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+
+  @@unique([productId, size, color])
+  @@index([productId])
+  @@index([active])
+}
+
+// ===========================
+// Customer & Address Models
+// ===========================
+
+model Customer {
+  id        BigInt   @id @default(autoincrement())
+  fullName  String   @db.VarChar(255)
+  phone     String   @unique @db.VarChar(20) // E.164 recommended
+  email     String?  @db.VarChar(255)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  addresses      Address[]
+  salesOrders    SalesOrder[]
+  messageThreads MessageThread[]
+
+  @@index([phone])
+  @@index([email])
+}
+
+model Address {
+  id         BigInt   @id @default(autoincrement())
+  customerId BigInt
+  line1      String   @db.VarChar(255)
+  line2      String?  @db.VarChar(255)
+  city       String   @db.VarChar(100)
+  district   String   @db.VarChar(100)
+  postalCode String   @db.VarChar(20)
+  country    String   @db.VarChar(100)
+  phone      String   @db.VarChar(20)
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  customer   Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  salesOrders SalesOrder[]
+
+  @@index([customerId])
+}
+
+// ===========================
+// Order Models
+// ===========================
+
+enum OrderChannel {
+  web
+  whatsapp
+}
+
+enum OrderStatus {
+  new
+  pending_payment
+  payment_review
+  confirmed
+  processing
+  shipped
+  delivered
+  cancelled
+  refunded
+}
+
+model SalesOrder {
+  id              BigInt       @id @default(autoincrement())
+  orderNumber     String       @unique @db.VarChar(50)
+  customerId      BigInt
+  addressId       BigInt
+  messageThreadId BigInt?      // Nullable: web orders won't have a thread
+  channel         OrderChannel @default(web)
+  status          OrderStatus  @default(new)
+  subtotal        Decimal      @db.Decimal(10, 2)
+  shippingFee     Decimal      @db.Decimal(10, 2)
+  total           Decimal      @db.Decimal(10, 2)
+  currency        String       @default("LKR") @db.VarChar(3)
+  customerNote    String?      @db.Text
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  customer       Customer        @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  address        Address         @relation(fields: [addressId], references: [id], onDelete: Restrict)
+  messageThread  MessageThread?  @relation(fields: [messageThreadId], references: [id], onDelete: SetNull)
+  orderItems     OrderItem[]
+  payments       Payment[]
+  auditLogs      AuditLog[]
+
+  @@index([customerId])
+  @@index([addressId])
+  @@index([messageThreadId])
+  @@index([channel])
+  @@index([status])
+}
+
+model OrderItem {
+  id        BigInt   @id @default(autoincrement())
+  orderId   BigInt
+  variantId BigInt
+  quantity  Int
+  unitPrice Decimal  @db.Decimal(10, 2)
+  lineTotal Decimal  @db.Decimal(10, 2)
+
+  order   SalesOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variant Variant    @relation(fields: [variantId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([variantId])
+}
+
+// ===========================
+// Payment Models
+// ===========================
+
+enum PaymentMethod {
+  cod
+  bank_transfer
+  gateway
+}
+
+enum PaymentState {
+  pending
+  review
+  verified
+  rejected
+  refunded
+}
+
+model Payment {
+  id          BigInt        @id @default(autoincrement())
+  orderId     BigInt
+  method      PaymentMethod @default(cod)
+  state       PaymentState  @default(pending)
+  amount      Decimal       @db.Decimal(10, 2)
+  currency    String        @default("LKR") @db.VarChar(3)
+  slipUrl     String?       @db.VarChar(500) // Bank transfer proof
+  gatewayRef  String?       @db.VarChar(255) // Payment gateway reference
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  order     SalesOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  auditLogs AuditLog[]
+
+  @@index([orderId])
+  @@index([state])
+}
+
+// ===========================
+// Messaging Models
+// ===========================
+
+enum MessageChannel {
+  whatsapp
+}
+
+model MessageThread {
+  id                BigInt         @id @default(autoincrement())
+  customerId        BigInt
+  channel           MessageChannel @default(whatsapp)
+  externalThreadId  String         @unique @db.VarChar(255) // Provider conversation ID
+  lastMessageAt     DateTime?
+  createdAt         DateTime       @default(now())
+
+  customer      Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  messages      Message[]
+  salesOrders   SalesOrder[]
+
+  @@index([customerId])
+  @@index([externalThreadId])
+}
+
+enum MessageDirection {
+  in
+  out
+}
+
+model Message {
+  id                BigInt           @id @default(autoincrement())
+  threadId          BigInt
+  direction         MessageDirection
+  body              String           @db.Text
+  mediaUrl          String?          @db.VarChar(500) // Optional attachment
+  providerMessageId String?          @db.VarChar(255) // Provider's message ID
+  createdAt         DateTime         @default(now())
+
+  thread MessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId])
+  @@index([providerMessageId])
+}
+
+// ===========================
+// Admin & Audit Models
+// ===========================
+
+enum AdminRole {
+  admin
+  staff
+}
+
+model AdminUser {
+  id            BigInt    @id @default(autoincrement())
+  email         String    @unique @db.VarChar(255)
+  passwordHash  String    @db.VarChar(255)
+  role          AdminRole @default(staff)
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  auditLogs AuditLog[]
+
+  @@index([email])
+  @@index([active])
+}
+
+model AuditLog {
+  id          BigInt    @id @default(autoincrement())
+  actorUserId BigInt?   // Nullable: system actions have no actor
+  orderId     BigInt?   // Nullable: not all audits relate to an order
+  paymentId   BigInt?   // Nullable: not all audits relate to a payment
+  action      String    @db.VarChar(100)
+  meta        Json?     // Old/new values, context, etc.
+  createdAt   DateTime  @default(now())
+
+  actor       AdminUser?   @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  order       SalesOrder?  @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  payment     Payment?     @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@index([actorUserId])
+  @@index([orderId])
+  @@index([paymentId])
+  @@index([action])
+}
