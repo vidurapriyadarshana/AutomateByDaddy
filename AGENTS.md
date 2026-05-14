@@ -13,6 +13,9 @@
 - `docs/home-business-automation-prd.md`: product requirements doc (goals, flows, MVP scope, open questions).
 - `docs/home-business-automation-erd.md`: proposed MySQL ERD (entities/relationships) in Mermaid.
 - `docs/folder-structure.md`: intended monorepo folder layout and module breakdown (aspirational vs current code).
+- `docs/backend-implementation-plan.md`: backend module-by-module implementation plan aligned to PRD/ERD + intended folder structure.
+- `docs/flows-customer-admin.md`: customer + admin/staff MVP flows with Mermaid diagrams.
+- `docs/flows-backend-frontend-whatsapp.md`: separated backend, frontend, and WhatsApp flow diagrams.
 - If a new `docs/*.md` file is added, add it to this list with a one-line summary.
 
 ## Install / Run
