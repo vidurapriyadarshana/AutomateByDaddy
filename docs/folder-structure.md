@@ -102,6 +102,7 @@ Notes:
 - `modules/` is feature-first (orders, products, payments, webhooks).
 - `webhooks/` handles WhatsApp inbound messages/media and payment gateway webhooks.
 - `files/` handles payment slip uploads from the website and storing media from WhatsApp.
+- Backend serves Swagger UI at `/docs` and OpenAPI JSON at `/openapi.json`.
 
 ## Frontend (`frontend/`)
 

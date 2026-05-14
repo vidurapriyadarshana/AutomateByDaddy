@@ -11,6 +11,14 @@ This software is designed to automate small home-based businesses such as clothi
 
 The platform automates customer communication, order management, payment handling, and notifications.
 
+## Dev Quickstart
+
+- Backend (run in `backend/`): `npm ci`, then `npm run dev`
+  - Health: `GET http://localhost:4000/health`
+  - Swagger UI: `http://localhost:4000/docs`
+  - OpenAPI JSON: `http://localhost:4000/openapi.json`
+- Frontend (run in `frontend/`): `npm ci`, then `npm run dev`
+
 ---
 
 # Main Workflow

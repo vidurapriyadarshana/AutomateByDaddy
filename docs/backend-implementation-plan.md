@@ -35,6 +35,7 @@ Backend root: `backend/`
 1. Add request id correlation.
 1. Add central error middleware (consistent error shape).
 1. Add `GET /health` (already exists) and `GET /version` (commit/hash optional).
+1. Add API docs: `GET /openapi.json` and Swagger UI at `/docs`.
 
 ### 0.2 Env management
 1. Create `src/config/env.ts`:
@@ -56,7 +57,7 @@ Backend root: `backend/`
 ### 0.5 Verification
 1. `backend/`: `npm ci`
 1. `npm run build`
-1. `npm run dev` then `GET http://localhost:4000/health`.
+1. `npm run dev` then `GET http://localhost:4000/health` and open `http://localhost:4000/docs`.
 
 ## Phase 1: Data Model + Migrations (Prisma)
 
