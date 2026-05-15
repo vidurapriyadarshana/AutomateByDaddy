@@ -80,8 +80,19 @@ export async function initializeWhatsAppClient(): Promise<void> {
       puppeteer: {
         headless: true,
         executablePath: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-        args: ["--no-sandbox", "--disable-setuid-sandbox"],
+        args: [
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+          "--disable-gpu",
+          "--disable-dev-shm-usage",
+        ],
       },
+      webVersionCache: {
+        type: "remote",
+        remotePath: "https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1019210295.html",
+      },
+      takeoverOnConflict: true,
+      qrMaxRetries: 3,
     });
 
     client.on(Events.QR_RECEIVED, async (qr: string) => {
