@@ -118,13 +118,14 @@ async function storeInboundMessage(message: {
   timestamp: number;
   hasMedia: boolean;
   mediaUrl?: string;
+  providerMessageId?: string;
 }): Promise<void> {
   try {
     const prisma = getPrisma() as any;
 
-    // Format phone number (remove whatsapp: prefix if present)
-    const fromPhone = message.from.replace(/whatsapp:/, "").replace(/@.*/, "");
-    const toPhone = message.to.replace(/whatsapp:/, "").replace(/@.*/, "");
+    // Format phone number (remove @c.us suffix if present)
+    const fromPhone = message.from.replace(/@c\.us$/, "").replace(/@g\.us$/, "").replace(/whatsapp:/, "");
+    const threadId = message.from; // Use full WhatsApp ID as external thread ID
 
     // Find or create customer by phone
     let customer = await prisma.customer.findUnique({
@@ -134,8 +135,8 @@ async function storeInboundMessage(message: {
     if (!customer) {
       customer = await prisma.customer.create({
         data: {
+          fullName: "WhatsApp Customer", // Will be updated when they place order
           phone: fromPhone,
-          name: "WhatsApp Customer", // Will be updated when they place order
           email: `wa-${fromPhone}@homebiz.local`, // Placeholder
         },
       });
@@ -143,20 +144,23 @@ async function storeInboundMessage(message: {
     }
 
     // Find or create message thread
-    let thread = await prisma.messageThread.findFirst({
-      where: {
-        customerId: customer.id,
-        channel: "WHATSAPP",
-      },
+    let thread = await prisma.messageThread.findUnique({
+      where: { externalThreadId: threadId },
     });
 
     if (!thread) {
       thread = await prisma.messageThread.create({
         data: {
           customerId: customer.id,
-          channel: "WHATSAPP",
-          threadId: fromPhone, // Use phone as thread identifier
+          channel: "whatsapp",
+          externalThreadId: threadId,
+          lastMessageAt: new Date(message.timestamp * 1000),
         },
+      });
+    } else {
+      await prisma.messageThread.update({
+        where: { id: thread.id },
+        data: { lastMessageAt: new Date(message.timestamp * 1000) },
       });
     }
 
@@ -164,10 +168,10 @@ async function storeInboundMessage(message: {
     await prisma.message.create({
       data: {
         threadId: thread.id,
-        direction: "INBOUND",
+        direction: "in",
         body: message.body,
         ...(message.mediaUrl ? { mediaUrl: message.mediaUrl } : {}),
-        externalMessageId: message.from, // WhatsApp message ID
+        ...(message.providerMessageId ? { providerMessageId: message.providerMessageId } : {}),
       },
     });
 
@@ -191,7 +195,8 @@ async function storeOutboundMessage(message: {
     const prisma = getPrisma() as any;
 
     // Format phone number
-    const toPhone = message.to.replace(/whatsapp:/, "").replace(/@.*/, "");
+    const toPhone = message.to.replace(/@c\.us$/, "").replace(/@g\.us$/, "").replace(/whatsapp:/, "");
+    const threadId = message.to.includes("@") ? message.to : `${toPhone}@c.us`;
 
     // Find customer
     const customer = await prisma.customer.findUnique({
@@ -204,19 +209,16 @@ async function storeOutboundMessage(message: {
     }
 
     // Find or create message thread
-    let thread = await prisma.messageThread.findFirst({
-      where: {
-        customerId: customer.id,
-        channel: "WHATSAPP",
-      },
+    let thread = await prisma.messageThread.findUnique({
+      where: { externalThreadId: threadId },
     });
 
     if (!thread) {
       thread = await prisma.messageThread.create({
         data: {
           customerId: customer.id,
-          channel: "WHATSAPP",
-          threadId: toPhone,
+          channel: "whatsapp",
+          externalThreadId: threadId,
         },
       });
     }
@@ -225,9 +227,9 @@ async function storeOutboundMessage(message: {
     await prisma.message.create({
       data: {
         threadId: thread.id,
-        direction: "OUTBOUND",
+        direction: "out",
         body: message.body,
-        externalMessageId: message.messageSid,
+        providerMessageId: message.messageSid,
       },
     });
 

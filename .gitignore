@@ -41,3 +41,7 @@ backend/prisma.config.js
 backend/prisma.config.js.map
 backend/prisma.config.d.ts
 backend/prisma.config.d.ts.map
+
+# whatsapp-web.js session & cache
+.wwebjs_auth/
+.wwebjs_cache/

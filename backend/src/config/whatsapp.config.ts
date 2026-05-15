@@ -1,17 +1,15 @@
 /**
- * WhatsApp Client Configuration (Scaffolded)
+ * WhatsApp Client Configuration
  *
- * Integration Options:
- * 1. whatsapp-web.js (browser automation) - QR code based linking
- * 2. Twilio API - Official, supports sandbox/production numbers
- * 3. 360dialog - WhatsApp Business Cloud API wrapper
- *
- * For now, we scaffold the interface with mock implementation.
- * The actual client implementation depends on your chosen provider.
+ * Uses whatsapp-web.js (Puppeteer-based browser automation).
+ * QR-code-based linking — scan with WhatsApp → Linked Devices.
  */
 
 import qrcode from "qrcode";
 import { logger } from "./logger.config";
+import WAWebJS from "whatsapp-web.js";
+
+const { Client, LocalAuth, Events, MessageMedia } = WAWebJS;
 
 // ============================================================================
 // STATE & TYPES
@@ -22,7 +20,7 @@ export interface WhatsAppClientState {
   isReady: boolean;
   isInitializing: boolean;
   authError: string | null;
-  provider: "whatsapp-web" | "twilio" | "360dialog" | "mock";
+  provider: "whatsapp-web";
 }
 
 export interface InboundMessage {
@@ -32,6 +30,7 @@ export interface InboundMessage {
   timestamp: number;
   hasMedia: boolean;
   mediaUrl?: string;
+  providerMessageId?: string;
 }
 
 type InboundMessageHandler = (message: InboundMessage) => Promise<void>;
@@ -45,55 +44,106 @@ let clientState: WhatsAppClientState = {
   isReady: false,
   isInitializing: false,
   authError: null,
-  provider: "mock",
+  provider: "whatsapp-web",
 };
 
+let client: WAWebJS.Client | null = null;
 const inboundHandlers: InboundMessageHandler[] = [];
 const PORT = parseInt(process.env.PORT || "4000", 10);
+
+// ============================================================================
+// PHONE / WHATSAPP ID HELPERS
+// ============================================================================
+
+function toWhatsAppId(phone: string): string {
+  const cleaned = phone.replace(/[+\s\-()]/g, "");
+  return cleaned.includes("@") ? cleaned : `${cleaned}@c.us`;
+}
+
+function parsePhone(rawId: string): string {
+  return rawId.replace(/@c\.us$/, "").replace(/@g\.us$/, "");
+}
 
 // ============================================================================
 // INITIALIZATION
 // ============================================================================
 
-/**
- * Initialize WhatsApp client
- *
- * Scaﬀolded for different providers. Mock mode by default for MVP.
- */
 export async function initializeWhatsAppClient(): Promise<void> {
-  if (clientState.isReady || clientState.isInitializing) {
-    return;
-  }
+  if (clientState.isReady || clientState.isInitializing) return;
 
   try {
     clientState.isInitializing = true;
-    logger.info("Initializing WhatsApp client (mock mode)...");
+    logger.info("Initializing WhatsApp client (whatsapp-web.js)...");
 
-    // ====== OPTION 1: whatsapp-web.js (Browser Automation) ======
-    // Uncomment when ready to integrate:
-    /*
-    waClient.on(Events.QR_RECEIVED, async (qr: string) => {
-      await displayQRInTerminal(qr);
-      clientState.qrCode = await qrcode.toDataURL(qr);
+    client = new Client({
+      authStrategy: new LocalAuth(),
+      puppeteer: {
+        headless: true,
+        executablePath: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+        args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      },
     });
-    */
 
-    // ====== OPTION 2: Twilio ======
-    // Uncomment when ready:
-    /*
-    clientState.isReady = true;
-    clientState.provider = "twilio";
-    */
+    client.on(Events.QR_RECEIVED, async (qr: string) => {
+      clientState.qrCode = await qrcode.toDataURL(qr);
+      await displayQRInTerminal(qr);
+    });
 
-    // ====== OPTION 3: Mock (MVP) ======
-    await displayMockQRInTerminal();
+    client.on(Events.READY, () => {
+      clientState.isReady = true;
+      clientState.isInitializing = false;
+      logger.info("WhatsApp client is ready — connected and linked");
+    });
 
-    clientState.provider = "mock";
-    clientState.isInitializing = false;
-    clientState.isReady = false;
-    clientState.qrCode = generateMockQRCode();
+    client.on(Events.AUTHENTICATED, () => {
+      logger.info("WhatsApp client authenticated");
+    });
 
-    logger.info("WhatsApp client initialized (mock mode - ready for integration)");
+    client.on(Events.AUTHENTICATION_FAILURE, (msg: string) => {
+      clientState.authError = msg;
+      logger.error("WhatsApp authentication failed", { error: msg });
+    });
+
+    client.on(Events.MESSAGE_RECEIVED, async (message) => {
+      if (message.fromMe) return;
+
+      const media = message.hasMedia
+        ? await message.downloadMedia().catch(() => null)
+        : null;
+
+      const mediaUrl = media?.data
+        ? `data:${media.mimetype};base64,${media.data}`
+        : undefined;
+      const providerMessageId: string | undefined =
+        typeof message.id === "object" && message.id !== null
+          ? `${message.id.id}_${message.id.remote}`
+          : String(message.id);
+
+      const inbound: InboundMessage = {
+        from: message.from,
+        to: message.to,
+        body: message.body,
+        timestamp: message.timestamp,
+        hasMedia: message.hasMedia,
+        ...(mediaUrl ? { mediaUrl } : {}),
+        ...(providerMessageId ? { providerMessageId } : {}),
+      };
+
+      for (const handler of inboundHandlers) {
+        try {
+          await handler(inbound);
+        } catch (e) {
+          logger.error("Inbound WhatsApp handler error", { error: String(e) });
+        }
+      }
+    });
+
+    client.on(Events.DISCONNECTED, (reason: string) => {
+      clientState.isReady = false;
+      logger.warn("WhatsApp client disconnected", { reason });
+    });
+
+    await client.initialize();
   } catch (error) {
     logger.error("Failed to initialize WhatsApp client", { error: String(error) });
     clientState.isInitializing = false;
@@ -105,11 +155,6 @@ export async function initializeWhatsAppClient(): Promise<void> {
 // QR DISPLAY (Terminal)
 // ============================================================================
 
-/**
- * Print a QR code to terminal using ASCII blocks.
- * Uses console.log to avoid Winston's timestamp prefix mangling the art.
- * Works with both real (whatsapp-web.js) and mock QR data.
- */
 export async function displayQRInTerminal(qrData: string): Promise<void> {
   try {
     const terminalQr = await qrcode.toString(qrData, {
@@ -131,7 +176,7 @@ export async function displayQRInTerminal(qrData: string): Promise<void> {
     }
 
     console.log("┌──────────────────────────────────────────┐");
-    console.log(`│   QR also available at:                    │`);
+    console.log("│   QR also available at:                  │");
     console.log(`│   http://localhost:${PORT}/webhooks/whatsapp/qr  │`);
     console.log("└──────────────────────────────────────────┘");
     console.log("");
@@ -140,137 +185,89 @@ export async function displayQRInTerminal(qrData: string): Promise<void> {
   }
 }
 
-/**
- * Display a mock QR code in terminal during MVP
- */
-async function displayMockQRInTerminal(): Promise<void> {
-  // Encode the API endpoint URL so scanning the QR opens the linking page
-  const mockData = `http://localhost:${PORT}/webhooks/whatsapp/qr`;
-
-  try {
-    const terminalQr = await qrcode.toString(mockData, {
-      type: "terminal",
-      small: true,
-    });
-
-    console.log("");
-    console.log("╔══════════════════════════════════════════════╗");
-    console.log("║       WHATSAPP QR CODE (MOCK MODE)          ║");
-    console.log("╠══════════════════════════════════════════════╣");
-    console.log("║  Scan this QR or visit the URL below         ║");
-    console.log("║  to link your WhatsApp account               ║");
-    console.log("╚══════════════════════════════════════════════╝");
-    console.log("");
-
-    const lines = terminalQr.split("\n");
-    for (const line of lines) {
-      if (line.trim()) {
-        console.log(line);
-      }
-    }
-
-    console.log("");
-    console.log("╔══════════════════════════════════════════════╗");
-    console.log("║  Endpoint: /webhooks/whatsapp/qr            ║");
-    console.log(`║  URL:      http://localhost:${PORT}/webhooks/whatsapp/qr  ║`);
-    console.log("╚══════════════════════════════════════════════╝");
-    console.log("");
-  } catch (error) {
-    logger.error("Failed to display mock QR in terminal", { error: String(error) });
-  }
-}
-
-/**
- * Generate mock QR code data URL for API responses
- */
-function generateMockQRCode(): string {
-  return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
-}
-
 // ============================================================================
 // PUBLIC API
 // ============================================================================
 
-/**
- * Get current client state
- */
 export function getWhatsAppClientState(): WhatsAppClientState {
   return { ...clientState };
 }
 
-/**
- * Get QR code for account linking
- */
 export function getQRCode(): string | null {
   return clientState.qrCode;
 }
 
-/**
- * Check if WhatsApp client is ready
- */
 export function isWhatsAppReady(): boolean {
   return clientState.isReady;
 }
 
-/**
- * Check if WhatsApp client is initializing
- */
 export function isWhatsAppInitializing(): boolean {
   return clientState.isInitializing;
 }
 
-/**
- * Send a WhatsApp message
- */
-export async function sendWhatsAppMessage(to: string, message: string): Promise<string> {
-  if (!isWhatsAppReady()) {
+export async function sendWhatsAppMessage(
+  to: string,
+  message: string,
+): Promise<string> {
+  if (!client || !clientState.isReady) {
     throw new Error("WhatsApp client not ready");
   }
 
-  const messageSid = `wm_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  logger.info(`[Mock] WhatsApp message to ${to}: ${messageSid}`);
-
-  // Real implementation: client.sendMessage(to, message) / Twilio API
-  return messageSid;
+  const chatId = toWhatsAppId(to);
+  const sent = await client.sendMessage(chatId, message);
+  const msgId =
+    typeof sent.id === "object" && sent.id !== null
+      ? `${sent.id.id}_${sent.id.remote}`
+      : String(sent.id);
+  logger.info(`WhatsApp message sent to ${chatId}: ${msgId}`);
+  return msgId;
 }
 
-/**
- * Send WhatsApp media
- */
 export async function sendWhatsAppMedia(
   to: string,
   mediaPath: string,
-  caption?: string
+  caption?: string,
 ): Promise<string> {
-  if (!isWhatsAppReady()) {
+  if (!client || !clientState.isReady) {
     throw new Error("WhatsApp client not ready");
   }
 
-  const messageSid = `wm_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  logger.info(`[Mock] WhatsApp media to ${to}: ${messageSid}`);
-  return messageSid;
+  const chatId = toWhatsAppId(to);
+  const media = MessageMedia.fromFilePath(mediaPath);
+  const sent = await client.sendMessage(chatId, media, {
+    caption: caption || "",
+  });
+  const msgId =
+    typeof sent.id === "object" && sent.id !== null
+      ? `${sent.id.id}_${sent.id.remote}`
+      : String(sent.id);
+  logger.info(`WhatsApp media sent to ${chatId}: ${msgId}`);
+  return msgId;
 }
 
-/**
- * Register inbound message handler
- */
 export function onInboundMessage(handler: InboundMessageHandler): void {
   inboundHandlers.push(handler);
 }
 
-/**
- * Logout from WhatsApp
- */
 export async function logoutWhatsApp(): Promise<void> {
+  if (!client) return;
+  try {
+    await client.logout();
+  } catch {
+    // Ignore errors during logout
+  }
   clientState.isReady = false;
   clientState.qrCode = null;
   logger.info("WhatsApp logged out");
 }
 
-/**
- * Destroy WhatsApp client
- */
 export async function destroyWhatsAppClient(): Promise<void> {
+  if (!client) return;
+  try {
+    await client.destroy();
+  } catch {
+    // Ignore errors during destroy
+  }
   clientState.isReady = false;
   clientState.isInitializing = false;
   logger.info("WhatsApp client destroyed");

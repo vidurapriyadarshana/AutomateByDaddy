@@ -13,6 +13,7 @@ import {
   getQRCode,
   isWhatsAppReady,
   isWhatsAppInitializing,
+  sendWhatsAppMessage,
   logoutWhatsApp,
   initializeWhatsAppClient,
 } from "../../config/whatsapp.config";
@@ -105,6 +106,44 @@ router.get("/status", async (req: Request, res: Response, next: NextFunction) =>
     next(error);
   }
 });
+
+/**
+ * POST /webhooks/whatsapp/send-test
+ *
+ * Send a test WhatsApp message (dev-only, no auth required)
+ * Body: { to: string, message: string }
+ */
+router.post(
+  "/send-test",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!isWhatsAppReady()) {
+        return res.status(400).json({
+          success: false,
+          error: "WhatsApp client is not ready. Scan QR code first.",
+        });
+      }
+
+      const { to, message } = req.body;
+      if (!to || !message) {
+        return res.status(400).json({
+          success: false,
+          error: "Missing required fields: to, message",
+        });
+      }
+
+      const msgId = await sendWhatsAppMessage(to, message);
+      return res.json({
+        success: true,
+        messageId: msgId,
+        to,
+      });
+    } catch (error) {
+      console.error(`Error in POST /webhooks/whatsapp/send-test: ${error}`);
+      next(error);
+    }
+  }
+);
 
 /**
  * POST /webhooks/whatsapp/logout
