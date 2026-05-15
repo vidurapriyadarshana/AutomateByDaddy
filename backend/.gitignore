@@ -3,3 +3,12 @@ node_modules
 .env
 
 /src/generated/prisma
+
+# Log files
+/logs/
+
+# WhatsApp session storage (whatsapp-web.js)
+/.wbot_sessions/
+
+# Uploaded payment slips
+/uploads/slips/*

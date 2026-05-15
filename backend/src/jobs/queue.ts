@@ -3,6 +3,8 @@
  * For production, use Bull, BullMQ, or RabbitMQ
  */
 
+import { logger } from "../config/logger.config";
+
 export type JobType = "send_email" | "send_whatsapp";
 
 export interface Job<T = any> {
@@ -68,8 +70,7 @@ class JobQueue {
 
     this.jobs.set(jobId, job);
 
-    // eslint-disable-next-line no-console
-    console.log(`[Queue] Job added: ${jobId}`);
+    logger.info(`[Queue] Job added: ${jobId}`);
 
     // Start processing if not already running
     if (!this.processingInterval) {
@@ -87,8 +88,7 @@ class JobQueue {
       await this.processNextJob();
     }, 1000); // Process every 1 second
 
-    // eslint-disable-next-line no-console
-    console.log("[Queue] Job processing started");
+    logger.info("[Queue] Job processing started");
   }
 
   /**
@@ -98,8 +98,7 @@ class JobQueue {
     if (this.processingInterval) {
       clearInterval(this.processingInterval);
       this.processingInterval = null;
-      // eslint-disable-next-line no-console
-      console.log("[Queue] Job processing stopped");
+      logger.info("[Queue] Job processing stopped");
     }
   }
 
@@ -119,8 +118,7 @@ class JobQueue {
     if (!worker) {
       job.status = "failed";
       job.error = `No worker registered for job type: ${job.type}`;
-      // eslint-disable-next-line no-console
-      console.error(`[Queue] ${job.error}`);
+      logger.error(`[Queue] ${job.error}`);
       return;
     }
 
@@ -129,29 +127,21 @@ class JobQueue {
       job.attempts += 1;
 
       // eslint-disable-next-line no-console
-      console.log(`[Queue] Processing job: ${job.id} (attempt ${job.attempts}/${job.maxAttempts})`);
+      logger.info(`[Queue] Processing job: ${job.id} (attempt ${job.attempts}/${job.maxAttempts})`);
 
       await worker(job);
 
       job.status = "completed";
-      // eslint-disable-next-line no-console
-      console.log(`[Queue] Job completed: ${job.id}`);
+      logger.info(`[Queue] Job completed: ${job.id}`);
     } catch (error: any) {
       job.error = error.message;
 
       if (job.attempts >= job.maxAttempts) {
         job.status = "failed";
-        // eslint-disable-next-line no-console
-        console.error(
-          `[Queue] Job failed after ${job.maxAttempts} attempts: ${job.id}`,
-          error,
-        );
+        logger.error(`[Queue] Job failed after ${job.maxAttempts} attempts: ${job.id}`, { error: error.message });
       } else {
         job.status = "pending";
-        // eslint-disable-next-line no-console
-        console.warn(
-          `[Queue] Job retry: ${job.id} (will retry, attempt ${job.attempts}/${job.maxAttempts})`,
-        );
+        logger.warn(`[Queue] Job retry: ${job.id} (will retry, attempt ${job.attempts}/${job.maxAttempts})`);
       }
     }
   }
@@ -195,8 +185,7 @@ class JobQueue {
     }
 
     if (cleaned > 0) {
-      // eslint-disable-next-line no-console
-      console.log(`[Queue] Cleaned up ${cleaned} old jobs`);
+      logger.info(`[Queue] Cleaned up ${cleaned} old jobs`);
     }
   }
 }

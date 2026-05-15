@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { env } from "../config/env";
+import { logger } from "../config/logger.config";
 
 let transporter: nodemailer.Transporter | null = null;
 
@@ -10,30 +11,27 @@ let transporter: nodemailer.Transporter | null = null;
 export function initializeEmailTransporter() {
   // Skip if disabled
   if (env.SMTP_ENABLED !== "true") {
-    // eslint-disable-next-line no-console
-    console.log("Email sending is disabled (SMTP_ENABLED != true)");
+    logger.info("Email sending is disabled (SMTP_ENABLED != true)");
     return null;
   }
 
   // Validate required config
   if (!env.SMTP_HOST || !env.SMTP_USER || !env.SMTP_PASSWORD || !env.SMTP_FROM) {
-    // eslint-disable-next-line no-console
-    console.warn("Email configuration incomplete. Emails will not be sent.");
+    logger.warn("Email configuration incomplete. Emails will not be sent.");
     return null;
   }
 
   transporter = nodemailer.createTransport({
     host: env.SMTP_HOST,
     port: env.SMTP_PORT,
-    secure: env.SMTP_PORT === 465, // Use TLS for 587, SSL for 465
+    secure: env.SMTP_PORT === 465,
     auth: {
       user: env.SMTP_USER,
       pass: env.SMTP_PASSWORD,
     },
   });
 
-  // eslint-disable-next-line no-console
-  console.log(`Email transporter initialized: ${env.SMTP_HOST}:${env.SMTP_PORT}`);
+  logger.info(`Email transporter initialized: ${env.SMTP_HOST}:${env.SMTP_PORT}`);
   return transporter;
 }
 
@@ -54,12 +52,10 @@ export async function testEmailConnection(): Promise<boolean> {
 
   try {
     await transporter.verify();
-    // eslint-disable-next-line no-console
-    console.log("✓ Email transporter verified successfully");
+    logger.info("Email transporter verified successfully");
     return true;
   } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error("✗ Email transporter verification failed:", error);
+    logger.error("Email transporter verification failed", { error: String(error) });
     return false;
   }
 }
@@ -74,8 +70,7 @@ export async function sendEmail(options: {
   text?: string;
 }): Promise<boolean> {
   if (!transporter) {
-    // eslint-disable-next-line no-console
-    console.warn("Email transporter not initialized. Email not sent.");
+    logger.warn("Email transporter not initialized. Email not sent.");
     return false;
   }
 
@@ -88,12 +83,10 @@ export async function sendEmail(options: {
       text: options.text || undefined,
     });
 
-    // eslint-disable-next-line no-console
-    console.log(`✓ Email sent to ${options.to}: ${options.subject}`);
+    logger.info(`Email sent to ${options.to}: ${options.subject}`);
     return true;
   } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error(`✗ Failed to send email to ${options.to}:`, error);
+    logger.error(`Failed to send email to ${options.to}`, { error: String(error) });
     return false;
   }
 }

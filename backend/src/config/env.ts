@@ -12,6 +12,9 @@ const EnvSchema = z.object({
   JWT_SECRET: z.string().min(32, "JWT_SECRET must be at least 32 characters"),
   JWT_EXPIRES_IN: z.string().default("7d"),
 
+  // Logging
+  LOG_LEVEL: z.enum(["error", "warn", "info", "debug"]).default("info"),
+
   // Email (SMTP)
   SMTP_HOST: z.string().min(1).optional(),
   SMTP_PORT: z.coerce.number().int().positive().default(587),

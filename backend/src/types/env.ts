@@ -8,6 +8,7 @@ export type Env = {
   DATABASE_URL?: string | undefined;
   JWT_SECRET: string;
   JWT_EXPIRES_IN: string;
+  LOG_LEVEL: string;
   SMTP_HOST?: string | undefined;
   SMTP_PORT: number;
   SMTP_USER?: string | undefined;

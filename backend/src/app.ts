@@ -1,11 +1,13 @@
 import cors from "cors";
 import express from "express";
 import path from "path";
+import morgan from "morgan";
 import swaggerUi from "swagger-ui-express";
 import { notFoundHandler, errorHandler } from "./middlewares/error.middleware";
 import { requestIdMiddleware } from "./middlewares/request-id.middleware";
 import { attachAuth } from "./middlewares/auth.middleware";
 import { openapiDocument } from "./openapi";
+import { morganStream } from "./config/logger.config";
 import authRoutes from "./modules/auth/auth.routes";
 import productRoutes from "./modules/products/product.routes";
 import customerRoutes from "./modules/customers/customer.routes";
@@ -17,6 +19,7 @@ export function createApp() {
   const app = express();
 
   app.use(requestIdMiddleware);
+  app.use(morgan("short", { stream: morganStream }));
   app.use(cors());
   app.use(express.json({ limit: "2mb" }));
 
