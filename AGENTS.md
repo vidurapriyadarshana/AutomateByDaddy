@@ -7,7 +7,7 @@
 ## Commands
 Always use `npm ci` in the respective project directory (not `npm install`).
 - **Frontend** (`frontend/`): `npm run dev`, `npm run lint`, `npm run build` (runs `tsc -b && vite build` — uses TS project references), `npm run preview`.
-- **Backend** (`backend/`): `npm run dev` (ts-node-dev --respawn --transpile-only — type errors can slip by), `npm run build` (full `tsc` typecheck), `npm start`, `npm test` (placeholder — "no tests yet").
+- **Backend** (`backend/`): `npm run dev` (ts-node-dev --respawn --transpile-only — type errors can slip by), `npm run build` (full `tsc` typecheck), `npm start`, `npm test` (vitest run), `npm run test:watch` (vitest interactive watch mode).
 - **Prisma** (from `backend/`): `npm run prisma:generate`, `npm run prisma:migrate`, `npm run prisma:studio`.
 
 ## Backend Gotchas
