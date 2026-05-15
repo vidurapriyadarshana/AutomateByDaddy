@@ -14,6 +14,7 @@ import customerRoutes from "./modules/customers/customer.routes";
 import orderRoutes from "./modules/orders/order.routes";
 import paymentRoutes from "./modules/payments/payment.routes";
 import whatsappWebhookRoutes from "./modules/webhooks/whatsapp.routes";
+import whatsappAdminRoutes from "./modules/whatsapp/whatsapp-admin.routes";
 
 export function createApp() {
   const app = express();
@@ -63,6 +64,9 @@ export function createApp() {
 
   // WhatsApp webhook routes
   app.use("/webhooks/whatsapp", whatsappWebhookRoutes);
+
+  // WhatsApp admin routes (threads, messages, send)
+  app.use("/admin/whatsapp", whatsappAdminRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
