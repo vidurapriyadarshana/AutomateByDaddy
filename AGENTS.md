@@ -8,12 +8,16 @@
 ## Commands (Use `npm ci`)
 - Frontend (run in `frontend/`): `npm ci`, `npm run dev`, `npm run lint`, `npm run build`, `npm run preview`.
 - Backend (run in `backend/`): `npm ci`, `npm run dev`, `npm run build`, `npm start`.
+  - Dev rebuilds and restarts on file changes (`ts-node-dev --respawn --transpile-only`).
+  - Build typechecks with `tsc` first before bundling.
 
 ## Backend Gotchas
 - Env is loaded via `import "dotenv/config"` in `backend/src/main.ts`; don't add additional dotenv bootstrapping elsewhere.
-- `backend/` dev uses `ts-node-dev --transpile-only` (type errors can slip by); use `npm run build` to typecheck.
+- `backend/` dev uses `ts-node-dev --respawn --transpile-only` (type errors can slip by); use `npm run build` to typecheck.
 - Smoke check: `GET /health` returns `{ "ok": true }` (default `PORT=4000` in `backend/.env.example`).
+- API docs: Swagger UI at `GET /docs`, OpenAPI spec at `GET /openapi.json`.
 - Backend `npm test` is a placeholder (prints "(no tests yet)").
+- JWT_SECRET must be at least 32 characters; check `backend/src/config/env.ts` for validation schema.
 
 ## Prisma / DB
 - Prisma schema: `backend/prisma/schema.prisma` (MySQL, `DATABASE_URL`).

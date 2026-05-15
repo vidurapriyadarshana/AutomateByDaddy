@@ -1,9 +1,16 @@
 import cors from "cors";
 import express from "express";
+import path from "path";
 import swaggerUi from "swagger-ui-express";
 import { notFoundHandler, errorHandler } from "./middlewares/error.middleware";
 import { requestIdMiddleware } from "./middlewares/request-id.middleware";
+import { attachAuth } from "./middlewares/auth.middleware";
 import { openapiDocument } from "./openapi";
+import authRoutes from "./modules/auth/auth.routes";
+import productRoutes from "./modules/products/product.routes";
+import customerRoutes from "./modules/customers/customer.routes";
+import orderRoutes from "./modules/orders/order.routes";
+import paymentRoutes from "./modules/payments/payment.routes";
 
 export function createApp() {
   const app = express();
@@ -11,6 +18,12 @@ export function createApp() {
   app.use(requestIdMiddleware);
   app.use(cors());
   app.use(express.json({ limit: "2mb" }));
+
+  // Serve uploaded files (slips, etc.)
+  app.use("/uploads", express.static(path.join(process.cwd(), "backend", "uploads")));
+
+  // Attach auth user if token provided (optional auth)
+  app.use(attachAuth());
 
   app.get("/health", (_req, res) => {
     res.json({ ok: true });
@@ -28,6 +41,21 @@ export function createApp() {
   });
 
   app.use("/docs", swaggerUi.serve, swaggerUi.setup(openapiDocument));
+
+  // Auth routes
+  app.use("/auth", authRoutes);
+
+  // Product routes (public + admin)
+  app.use("/products", productRoutes);
+
+  // Customer routes (admin only)
+  app.use("/admin/customers", customerRoutes);
+
+  // Order routes (public checkout + admin)
+  app.use("/orders", orderRoutes);
+
+  // Payment routes (public + admin)
+  app.use("/payments", paymentRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

@@ -279,3 +279,21 @@ model AuditLog {
   @@index([paymentId])
   @@index([action])
 }
+
+// ===========================
+// Idempotency Events (Webhook)
+// ===========================
+
+model IdempotencyEvent {
+  id                BigInt    @id @default(autoincrement())
+  eventKey          String    @unique @db.VarChar(255) // {provider}:{type}:{externalId}
+  provider          String    @db.VarChar(50)           // "whatsapp", "payment_gateway", etc.
+  eventType         String    @db.VarChar(100)          // "message", "payment_completed", etc.
+  externalEventId   String    @db.VarChar(255)          // Provider's event ID
+  processedAt       DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+
+  @@index([provider])
+  @@index([eventType])
+  @@index([processedAt])
+}
