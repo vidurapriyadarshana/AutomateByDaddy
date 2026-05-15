@@ -3,7 +3,7 @@
  * For production, use Bull, BullMQ, or RabbitMQ
  */
 
-export type JobType = "send_email";
+export type JobType = "send_email" | "send_whatsapp";
 
 export interface Job<T = any> {
   id: string;
@@ -24,6 +24,16 @@ export interface EmailJobData {
   metadata?: {
     orderId?: bigint;
     paymentId?: bigint;
+    eventType?: string;
+  };
+}
+
+export interface WhatsAppJobData {
+  to: string;
+  message: string;
+  metadata?: {
+    orderId?: bigint;
+    customerId?: bigint;
     eventType?: string;
   };
 }

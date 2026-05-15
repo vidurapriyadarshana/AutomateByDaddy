@@ -1,6 +1,6 @@
 /**
- * Email Messaging Service
- * Handles queueing emails for orders, payments, and status updates
+ * Messaging Service (Email + WhatsApp)
+ * Handles queueing emails and WhatsApp messages for orders, payments, and status updates
  */
 
 import { jobQueue } from "../../jobs/queue";
@@ -157,6 +157,77 @@ export async function queuePaymentRejectedEmail(params: {
       orderId: params.orderId,
       paymentId: params.paymentId,
       eventType: "payment_rejected",
+    },
+  });
+
+  return jobId;
+}
+
+// ============ WHATSAPP MESSAGES ============
+
+/**
+ * Queue order confirmation WhatsApp message
+ */
+export async function queueOrderConfirmationWhatsApp(params: {
+  customerPhone: string;
+  orderNumber: string;
+  orderId: bigint;
+  total: string;
+}): Promise<string> {
+  const message = `✅ Order Confirmed!\n\nOrder #${params.orderNumber}\nTotal: Rs. ${params.total}\n\nYou will receive updates on your order status.`;
+
+  const jobId = await jobQueue.addJob("send_whatsapp", {
+    to: params.customerPhone,
+    message,
+    metadata: {
+      orderId: params.orderId,
+      eventType: "order_confirmation",
+    },
+  });
+
+  return jobId;
+}
+
+/**
+ * Queue order status update WhatsApp message
+ */
+export async function queueOrderStatusUpdateWhatsApp(params: {
+  customerPhone: string;
+  orderNumber: string;
+  orderId: bigint;
+  newStatus: string;
+}): Promise<string> {
+  const message = `📦 Order Status Update\n\nOrder #${params.orderNumber}\nNew Status: ${params.newStatus}\n\nThank you for your purchase!`;
+
+  const jobId = await jobQueue.addJob("send_whatsapp", {
+    to: params.customerPhone,
+    message,
+    metadata: {
+      orderId: params.orderId,
+      eventType: "order_status_update",
+    },
+  });
+
+  return jobId;
+}
+
+/**
+ * Queue payment confirmed WhatsApp message
+ */
+export async function queuePaymentConfirmedWhatsApp(params: {
+  customerPhone: string;
+  orderNumber: string;
+  orderId: bigint;
+  amount: string;
+}): Promise<string> {
+  const message = `💰 Payment Received!\n\nOrder #${params.orderNumber}\nAmount: Rs. ${params.amount}\n\nYour payment has been verified. We'll start processing your order now.`;
+
+  const jobId = await jobQueue.addJob("send_whatsapp", {
+    to: params.customerPhone,
+    message,
+    metadata: {
+      orderId: params.orderId,
+      eventType: "payment_verified",
     },
   });
 
